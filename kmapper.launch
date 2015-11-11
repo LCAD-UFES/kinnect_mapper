@@ -1,0 +1,38 @@
+<launch>
+
+	<!-- "to" is the name of the published topic, and "from" is the nickname it will receive. -->
+	<remap from="/image" to="/camera/depth/image" /> 
+
+	<!-- kinect #1 -->
+	<include file="$(find freenect_launch)/launch/freenect.launch">
+		<arg name="camera" default="camera1" />
+		<arg name="device_id" default="A00363A03397130A" />
+		<!-- <arg name="load_driver" default="false" /> -->
+		<!-- <arg name="publish_tf" default="true" /> -->
+	</include> 
+	
+	<!-- kinect #2 -->
+	<include file="$(find freenect_launch)/launch/freenect.launch">
+		<arg name="camera" default="camera2" />
+		<arg name="device_id" default="B00361710187045B" />
+		<!-- <arg name="load_driver" default="false" /> -->
+		<!-- <arg name="publish_tf" default="true" /> -->
+	</include> 
+	
+	<!-- depthimage-to-laserscan -->
+	<!--
+	<node name="depthimage_to_laserscan" pkg="depthimage_to_laserscan" type="depthimage_to_laserscan" > 
+		<param name="scan_height" value="200" /> 
+	</node> 
+	-->
+
+	<!-- TFs -->
+	<node name="kinect_tf" pkg="kinnect_mapper" type="kinect_tf.py" />
+
+	<!-- Viewers -->
+	<node name="rviz" pkg="rviz" type="rviz" /> 
+
+	<!-- Kinect Mapper -->
+	<node name="kinnect_mapper" pkg="kinnect_mapper" type="kinect_mapper" />
+
+</launch>
