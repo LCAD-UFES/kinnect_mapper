@@ -27,12 +27,12 @@
 	-->
 
 	<!-- TFs -->
-	<node name="kinect_tf" pkg="kinnect_mapper" type="kinect_tf.py" />
+	<!-- <node name="kinect_tf" pkg="kinnect_mapper" type="kinect_tf.py" /> -->
 
 	<!-- Viewers -->
-	<node name="rviz" pkg="rviz" type="rviz" /> 
+	<!-- <node name="rviz" pkg="rviz" type="rviz" /> -->
 
 	<!-- Kinect Mapper -->
-	<node name="kinnect_mapper" pkg="kinnect_mapper" type="kinect_mapper" />
+	<!-- <node name="kinnect_mapper" pkg="kinnect_mapper" type="kinect_mapper" /> -->
 
 </launch>
