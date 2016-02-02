@@ -1,0 +1,49 @@
+Install
+
+- install ros-indigo-full
+- install the ros package rosaria 
+- install the ros packages sicktoolbox and sicktoolbox_wrapper
+- install jstest-gtk from apt-get to test the joystick
+- install the ros package joy (depends of libusb-dev e libspnav-dev)
+- install mobilesim to basic simulations from http://robots.mobilerobots.com/wiki/MobileSim using "dpkg -i <nome do arquivo deb>" 
+	- depends: apt-get install xfonts-100dpi
+- download the auxilary scripts from lcad's repository
+	- RosAriaJoyTeleop.py: control the robot using joystick
+	- RosAriaKeyTeleop.py: control the robot using keyboard
+	- RosAriaLaserTf.py: publish laser frame in relation to the base_link frame
+- install the ros package slam_gmapping FROM APT-GET (it will install several other dependencies. DON'T TRY TO DO IT MANUALLY, ONE-BY-ONE!)
+	- sudo apt-get install ros-indigo-slam-gmapping
+- install the ros package navigation FROM APT-GET (it will install several other dependencies. DON'T TRY TO DO IT MANUALLY, ONE-BY-ONE!)
+	- sudo apt-get install ros-indigo-navigation
+	- NOTE: this package contains the map_server
+
+Optional
+
+- install gazebo-ros:
+	sudo apt-get install libsdformat1 libsdformat-dev
+	sudo apt-get install ros-indigo-gazebo-ros-pkgs ros-indigo-gazebo-ros-control
+
+Run 1 - create a log file from real world
+
+> chmod 777 /dev/ttyUSB0 # robot
+> chmod 777 /dev/ttyUSB1 # laser
+# > chmod 777 /dev/js0 # joystick
+> roscore
+> rosrun rosaria RosAria _port:=/dev/ttyUSB0
+> rosrun sicktoolbox_wrapper sicklms _port:=/dev/ttyUSB1 _baud=38400 # check if the 2nd parameter is necessary
+> rosrun <pacote do lcad> RosAriaLaserTf.py
+> rosrun <pacote do lcad> RosAriaJoyTeleop.py
+> rosbag record -O <nome do arquivo> /base_scan /tf
+[> rosrun rviz rviz]
+
+Run 1 - create a log file from simulation (check how to add the laser)
+
+# > chmod 777 /dev/js0 # joystick
+> roscore
+> MobileSim -m /usr/local/MobileSim/AMROffice.map -r p3dx:robot1
+> rosrun rosaria RosAria
+> rosrun <pacote do lcad> <codigo que publica a tf dos sonares> 
+> rosrun <pacote do lcad> RosAriaJoyTeleop.py
+> rosbag record -O <nome do arquivo> /base_scan /tf
+[> rosrun rviz rviz]
+

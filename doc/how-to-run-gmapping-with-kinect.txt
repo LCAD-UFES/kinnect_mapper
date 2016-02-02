@@ -1,0 +1,33 @@
+part 1: record a log (leia o apendice abaixo)
+	>> roscore
+	>> sudo chmod 777 /dev/ttyUSB* 
+	>> rosrun rosaria RosAria _port:=/dev/ttyUSB0
+	>> roslaunch kinnect_mapper kmapper.launch ## para rodar os drivers das duas kinects
+	>> rosrun rosaria RosAriaKeyTeleopSafe.py
+	>> rosbag record -O log-pioneer-kinects /camera2/depth/image /camera2/depth/camera_info  /camera1/depth/image /camera1/depth/camera_info /tf  --split --size=1024 -b 512 ## veja o apendice para entender os parametros
+
+part 2: create the map using the log
+	>> roscore
+	>> rosparam set /use_sim_time true
+	>> rosrun rviz rviz
+	>> rosrun  kinnect_mapper kinect_mapper
+	>> rosrun gmapping slam_gmapping scan:=scan _odom_frame:=odom _map_update_interval=0.5 _maxUrange=4.5 _iterations=10 _minimumScore=50 _linearUpdate=0.2 _angularUpdate=0.35 _particles=100 _maxRange=4.5
+	>> rosbag play --clock log-pioneer-kinects_0.bag log-pioneer-kinects_1.bag  ... log-pioneer-kinects_n.bag
+
+OBS: Se voce gravou no log as imagens do topico /camera1/depth/image_raw ao inves do /camera1/depth/image, abra o arquivo "kmapper.launch" dentro do pacote kinect_mapper e descomente as 2 linhas "<arg name="load_driver" default="false" />". Na hora de rodar o log, roda tambem o comando "rosrun kinnect_mapper kmapper.launch".
+
+
+
+Apendice 1: sobre salvar bag files 
+
+-> Os bag files ficam super lentos para serem carregados quando sao grandes. Use uma das opcoes abaixo para salvar varios mini-logs [Referencia: http://wiki.ros.org/rosbag/Commandline].
+
+	$ rosbag record --split --size=1024 /chatter
+	$ rosbag record --split --duration=30 /chatter
+	$ rosbag record --split --duration=5m /chatter
+	$ rosbag record --split --duration=2h /chatter
+
+-> Para comprimir os logs usando BZ2 use a opcao -j ou --bz2. 
+-> Para aumentar o buffer de mensagens (util quando as mensagens sao grandes), use -b SIZE ou --buffsize=SIZE (Default: 256, 0 = infinite)). O Size deve ser especificado em MB.
+
+

@@ -58,6 +58,18 @@ cams_to_laser_handler(const sensor_msgs::Image::ConstPtr& cam1_msg, const sensor
 		adapter.view();
 
 	g_laser_publisher.publish(scan);
+
+	static int n = 0;
+	static double last_time = 0; //cam1_msg->header.stamp.toSec(); // ros::Time::now().toSec();
+
+	if (fabs(ros::Time::now().toSec() - last_time) > 1.0)
+	{
+		last_time = ros::Time::now().toSec(); //cam1_msg->header.stamp.toSec();
+		fprintf(stderr, "Messages per second: %d\n", n);
+		n = 0;
+	}
+	else
+		n++;
 }
 
 
@@ -71,13 +83,13 @@ main(int argc, char **argv)
 
 	g_laser_publisher = n.advertise<sensor_msgs::LaserScan>("/scan", 30);
 
-	message_filters::Subscriber<sensor_msgs::Image> right_cam_subscriber(n, "/camera1/depth/image", 1);
-	message_filters::Subscriber<sensor_msgs::Image> left_cam_subscriber(n, "/camera2/depth/image", 1);
+	message_filters::Subscriber<sensor_msgs::Image> left_cam_subscriber(n, "/camera1/depth/image", 50);
+	message_filters::Subscriber<sensor_msgs::Image> right_cam_subscriber(n, "/camera2/depth/image", 50);
 
 	typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
 
 	// Note: ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
-	message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), left_cam_subscriber, right_cam_subscriber);
+	message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(50), left_cam_subscriber, right_cam_subscriber);
 
 	// uncomment the first to measure the rate when the synchronization is used, and the second to
 	// transform the cams messages in a laser message.

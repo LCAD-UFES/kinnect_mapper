@@ -1,0 +1,28 @@
+<launch>
+
+	<!-- kinect #1 -->
+	<include file="$(find freenect_launch)/launch/freenect.launch">
+		<arg name="camera" default="camera1" />
+		<arg name="device_id" default="A00363A03397130A" />
+		<arg name="load_driver" default="false" />
+		<arg name="publish_tf" default="false" />
+	</include> 
+	
+	<!-- kinect #2 -->
+	<include file="$(find freenect_launch)/launch/freenect.launch">
+		<arg name="camera" default="camera2" />
+		<arg name="device_id" default="B00361710187045B" />
+		<arg name="load_driver" default="false" />
+		<arg name="publish_tf" default="false" />
+	</include> 
+	
+	<!-- Viewers -->
+	<node name="rviz" pkg="rviz" type="rviz" args="-d $(find kinnect_mapper)/kinect_mapper_rviz_config.rviz" /> 
+
+	<!-- GMapping -->
+	<node name="gmapping" pkg="gmapping" type="slam_gmapping" /> 
+
+	<!-- Kinect Mapper -->
+	<node name="kinnect_mapper" pkg="kinnect_mapper" type="kinect_mapper" /> 
+
+</launch>

@@ -1,5 +1,4 @@
 
-
 #include <map>
 #include <cmath>
 #include <string>
@@ -13,6 +12,7 @@
 #include "KinectToLaserAdapter.h"
 #include "sensor_msgs/LaserScan.h"
 #include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
 #include "sensor_msgs/image_encodings.h" // CHECK IF IT IS NECESSARY!!!!
 #include "LinearAlgebraUtils.h"
 
@@ -26,21 +26,6 @@ using namespace angles;
  * LEFT KINECT TO BASE_LINK: 0 -0.10 0.495 0 30 -32
  * RIGHT KINECT TO BASE_LINK: 0 0.105 0.5 0 30 30
  */
-
-//void
-//KinectToLaserAdapter::_transform_polar_coordinates_to_cartesian_coordinates(double radius, double angle, double *x, double *y)
-//{
-//	*x = radius * cos(angle);
-//	*y = radius * sin(angle);
-//}
-//
-//
-//void
-//KinectToLaserAdapter::_transform_cartesian_coordinates_to_polar_coordinates(double x, double y, double *radius, double *angle)
-//{
-//	*angle = atan2(y, x);
-//	*radius = sqrt(pow(x, 2) + pow(y, 2));
-//}
 
 
 void
@@ -79,8 +64,8 @@ KinectToLaserAdapter::_draw_point_in_the_map(Mat &m, SphericalPoint &s, double e
 	x = c.x;
 	y = c.y;
 
-	int pixel_x = (int) (y / VIEWER_PIXELS_PER_METER_Y) + (m.rows / 2);
-	int pixel_y = (int) (x / VIEWER_PIXELS_PER_METER_X) + 10;
+	int pixel_x = (int) (y / _VIEWER_PIXELS_PER_METER_Y) + (m.rows / 2);
+	int pixel_y = (int) (x / _VIEWER_PIXELS_PER_METER_X) + 10;
 
 	// As operacoes estao invertidas de proposito para melhorar a visulizacao
 	pixel_y = m.rows - pixel_y - 1;
@@ -131,15 +116,29 @@ KinectToLaserAdapter::_normalize(const Mat &m)
 void
 KinectToLaserAdapter::_clean_auxiliar_images()
 {
-	scan_viewer = Scalar(255, 255, 255);
-	obstacles_in_image_viewer = Scalar(255, 255, 255);
+	_scan_viewer = Scalar(255, 255, 255);
+	_left_obstacles_in_image_viewer = Scalar(255, 255, 255);
+	_right_obstacles_in_image_viewer = Scalar(255, 255, 255);
+}
+
+
+void
+KinectToLaserAdapter::_clean_scan()
+{
+	for (int i = 0; i < _scan.size(); i++)
+	{
+		_scan[i] = _KINECT_MAX_RANGE;
+		_intensities[i] = 0;
+	}
 }
 
 
 KinectToLaserAdapter::KinectToLaserAdapter()
 {
-	obstacles_in_image_viewer = Mat(KINECT_HEIGHT, KINECT_WIDTH, CV_8UC3);
-	scan_viewer = Mat(MAP_VIEWER_HEIGHT, MAP_VIEWER_WIDTH, CV_8UC3);
+	_left_obstacles_in_image_viewer = Mat(_KINECT_HEIGHT, _KINECT_WIDTH, CV_8UC3);
+	_right_obstacles_in_image_viewer = Mat(_KINECT_HEIGHT, _KINECT_WIDTH, CV_8UC3);
+
+	_scan_viewer = Mat(_MAP_VIEWER_HEIGHT, _MAP_VIEWER_WIDTH, CV_8UC3);
 
 	// ********************************************************************************************************
 	// INFO ABOUT ANGLES IN THE TF (from http://www.bulletphysics.com/Bullet/BulletFull/classbtQuaternion.html#a8bd5d699377ba585749d325076616ffb)
@@ -148,18 +147,34 @@ KinectToLaserAdapter::KinectToLaserAdapter()
 	// roll: Angle around Z unless BT_EULER_DEFAULT_ZYX defined then X
 	//
 	// OBS: In the ros reference system, the order of the angles in the Quaternion is PITCH, ROLL, YAW instead
-	// of YAW, PITCH, ROLL as the documentation says.
+	// of YAW, PITCH, ROLL as the documentation says. Observe also that the meaning of the angles are different
+	// from what we are used to in carmen.
 	//
 	// ********************************************************************************************************
 
 	// 20 degrees = 0,3491 radians
 	// 30 degrees = 0.5236 radians
 	// 40 degrees = 0,6981 radians
+	// 6 degrees ~= 0.1 radians
 
 	// CALIBRATION LEFT KINECT TO BASE_LINK: (x,y,z in meters) = 0 -0.10 0.495 (r,p,y in degrees) = 0 30 -32
-	LeftCamToBaseLink = tf::Transform(tf::Quaternion(0.1236, 0, -0.6585), tf::Vector3(0, -0.10, 0.495));
+	// LeftCamToBaseLink = tf::Transform(tf::Quaternion(0.1236, 0, -0.5585), tf::Vector3(0, -0.10, 0.495));
+	// _LeftCamToBaseLink = tf::Transform(tf::Quaternion(0.1236, 0, 0.5585), tf::Vector3(0, -0.10, 0.495));
+	_LeftCamToBaseLink = tf::Transform(tf::Quaternion(0.4536, -0.3836, 0.3885), tf::Vector3(0, -0.10, 0.495));
+
 	// CALIBRATION RIGHT KINECT TO BASE_LINK: (x,y,z in meters) = 0 0.105 0.5 (r,p,y in degrees) = 0 30 30
-	RightCamToBaseLink = tf::Transform(tf::Quaternion(0.1236, 0, 0.5236), tf::Vector3(0, -0.10, 0.495));
+	// RightCamToBaseLink = tf::Transform(tf::Quaternion(0.1236, 0, 0.5236), tf::Vector3(0, -0.105, 0.5));
+	// _RightCamToBaseLink = tf::Transform(tf::Quaternion(0.1236, 0, -0.5236), tf::Vector3(0, -0.105, 0.5));
+	_RightCamToBaseLink = tf::Transform(tf::Quaternion(0.5836, 0.3736, -0.3436), tf::Vector3(0, -0.105, 0.5));
+
+
+	_STARTING_ANGLE = from_degrees(-50);
+	_ENDING_ANGLE = from_degrees(50);
+	_ANGULAR_STEP = from_degrees(1);
+	_NUM_RAYS_IN_SCAN = (int) ((_ENDING_ANGLE - _STARTING_ANGLE) / _ANGULAR_STEP);
+
+	_scan = vector<float>(_NUM_RAYS_IN_SCAN);
+	_intensities = vector<float>(_NUM_RAYS_IN_SCAN);
 }
 
 
@@ -174,8 +189,8 @@ KinectToLaserAdapter::_calulate_obstacle_evidence(double current_vertical_angle,
 {
 	double ray_z = range_current * sin(current_vertical_angle);
 
-	if ((range_current >= KINECT_MAX_RANGE) || (range_current <= KINECT_MIN_RANGE) || (range_previous >= KINECT_MAX_RANGE) ||
-			(range_previous <= KINECT_MIN_RANGE) || isnan(range_current) || isnan(range_previous) || (ray_z > 1.5))
+	if ((range_current >= _KINECT_MAX_RANGE) || (range_current <= _KINECT_MIN_RANGE) || (range_previous >= _KINECT_MAX_RANGE) ||
+			(range_previous <= _KINECT_MIN_RANGE) || isnan(range_current) || isnan(range_previous) || (ray_z > 1.5))
 	{
 		return -1;
 	}
@@ -186,10 +201,10 @@ KinectToLaserAdapter::_calulate_obstacle_evidence(double current_vertical_angle,
 	double range_current_on_the_ground = range_current * cos_current;
 	double range_previous_on_the_ground = range_previous * cos_previous;
 
-	double next_ray_angle = -normalize_angle(current_vertical_angle - previous_vertical_angle) + atan(KINECT_Z / range_previous_on_the_ground);
+	double next_ray_angle = -normalize_angle(current_vertical_angle - previous_vertical_angle) + atan(_KINECT_Z / range_previous_on_the_ground);
 
 	double measured_difference = range_current_on_the_ground - range_previous_on_the_ground;
-	double expected_difference = (KINECT_Z - range_previous_on_the_ground * tan(next_ray_angle)) / tan(next_ray_angle);
+	double expected_difference = (_KINECT_Z - range_previous_on_the_ground * tan(next_ray_angle)) / tan(next_ray_angle);
 
 	double obstacle_evidence = 1 - (measured_difference / expected_difference);
 	return obstacle_evidence;
@@ -199,85 +214,60 @@ KinectToLaserAdapter::_calulate_obstacle_evidence(double current_vertical_angle,
 void
 KinectToLaserAdapter::_draw_point_in_image(Mat &n, int i, int j, uchar r, uchar g, uchar b)
 {
-	n.data[i * n.step + 3 * j + 0] = (uchar) b;
-	n.data[i * n.step + 3 * j + 1] = (uchar) g;
-	n.data[i * n.step + 3 * j + 2] = (uchar) r;
-}
-
-
-void
-KinectToLaserAdapter::_add_point_to_scan_candidates(SphericalPoint point, double obstacle_evidence)
-{
-	SphericalPoint projection_2d;
-	CartesianPoint c = TransformUtil::toCartesian(point);
-
-	projection_2d.hangle = atan2(c.y, c.x);
-	projection_2d.radius = sqrt(pow(c.x, 2) + pow(c.y, 2));
-	projection_2d.vangle = 0;
-
-	scan_candidates_and_obstacle_evidence.push_back(pair<double, SphericalPoint>(obstacle_evidence, projection_2d));
-}
-
-
-void
-KinectToLaserAdapter::_build_scan_from_candidates(sensor_msgs::LaserScan &scan, vector<pair<double, SphericalPoint> > &candidates, ros::Time message_timestamp)
-{
-	scan.ranges.clear();
-	scan.intensities.clear();
-
-	scan.range_max = 10.0;
-	scan.range_min = 0.4;
-
-	sort(candidates.begin(), candidates.end(), SortByAngle());
-
-	double min_angle = DBL_MAX, max_angle = -DBL_MAX;
-	double min_range_in_section;
-	double avg_range;
-	double last_angle;
-	int selected_ray;
-	double nranges;
-
-	last_angle = candidates[0].second.hangle;
-	min_range_in_section = DBL_MAX;
-	avg_range = 0; nranges = 0;
-	selected_ray = 0;
-
-	for (int i = 0; i < candidates.size(); i++)
+	for (int k = 0; k < _KINECT_LINE_STEP_BETWEEN_RAYS_TO_DETECT_OBSTACLES; k++)
 	{
-		if (candidates[i].second.hangle < min_angle)
-			min_angle = candidates[i].second.hangle;
-
-		if (candidates[i].second.hangle > max_angle)
-			max_angle = candidates[i].second.hangle;
-
-		if (candidates[i].first > OBSTACLE_EVIDENCE_THREASHOLD && candidates[i].first != -1)
+		if ((i + k) >= 0 && (i + k) < n.rows && j >= 0 && j < n.cols)
 		{
-			avg_range += candidates[i].second.radius;
-			nranges += 1;
-		}
-
-		// add a new ray every 0.5 degrees
-		if ((candidates[i].second.hangle - last_angle) > from_degrees(0.5))
-		{
-			if (nranges == 0)
-				scan.ranges.push_back(10.0);
-			else
-			{
-				avg_range /= nranges;
-				scan.ranges.push_back(avg_range);
-			}
-
-			scan.intensities.push_back(0);
-
-			last_angle = candidates[i].second.hangle;
-			min_range_in_section = DBL_MAX;
-			avg_range = 0; nranges = 0;
+			n.data[(i + k) * n.step + 3 * j + 0] = (uchar) b;
+			n.data[(i + k) * n.step + 3 * j + 1] = (uchar) g;
+			n.data[(i + k) * n.step + 3 * j + 2] = (uchar) r;
 		}
 	}
+}
 
-	scan.angle_max = max_angle;
-	scan.angle_min = min_angle;
-	scan.angle_increment = from_degrees(0.5);
+
+void
+KinectToLaserAdapter::_add_point_to_scan(SphericalPoint point, double obstacle_evidence)
+{
+	double hangle, radius;
+	int angular_section;
+
+	CartesianPoint c = TransformUtil::toCartesian(point);
+
+	hangle = atan2(c.y, c.x);
+	radius = sqrt(pow(c.x, 2) + pow(c.y, 2));
+
+	if (radius >= _KINECT_MAX_RANGE || radius < _KINECT_MIN_RANGE)
+		radius = _KINECT_MAX_RANGE;
+
+	angular_section = (int) ((hangle + fabs(_STARTING_ANGLE)) / _ANGULAR_STEP);
+
+	if ((angular_section >= 0) && (angular_section < _NUM_RAYS_IN_SCAN))
+	{
+		if (radius < _scan[angular_section])
+		{
+			_scan[angular_section] = (float) radius;
+			_intensities[angular_section] = (float) obstacle_evidence;
+		}
+	}
+}
+
+
+void
+KinectToLaserAdapter::_build_scan(sensor_msgs::LaserScan &scan, ros::Time message_timestamp)
+{
+	scan.ranges = _scan;
+	scan.intensities.clear();
+
+	scan.range_max = _KINECT_MAX_RANGE;
+	scan.range_min = _KINECT_MIN_RANGE;
+
+//	scan.range_max = 10.0;
+//	scan.range_min = 0.4;
+
+	scan.angle_max = _ENDING_ANGLE;
+	scan.angle_min = _STARTING_ANGLE;
+	scan.angle_increment = _ANGULAR_STEP;
 	scan.time_increment = 0; // CHECK IF IT IS NECESSARY
 	scan.scan_time = 0; // CHECK IF IT IS NECESSARY
 	scan.header.stamp = message_timestamp;
@@ -306,59 +296,76 @@ KinectToLaserAdapter::translate(const sensor_msgs::Image::ConstPtr& left_cam_msg
 	depth_images.push_back(_msg_to_opencv(left_cam_msg));
 	depth_images.push_back(_msg_to_opencv(right_cam_msg));
 
-	corrections.push_back(LeftCamToBaseLink);
-	corrections.push_back(RightCamToBaseLink);
+	corrections.push_back(_LeftCamToBaseLink);
+	corrections.push_back(_RightCamToBaseLink);
 
-	normalized_depth_images.clear();
+	_normalized_depth_images.clear();
 
 	for (i = 0; i < depth_images.size(); i++)
-		normalized_depth_images.push_back(_normalize(depth_images[i]));
+		_normalized_depth_images.push_back(_normalize(depth_images[i]));
 
+	_clean_scan();
 	_clean_auxiliar_images();
 
 	for (j = 0; j < depth_images[0].cols; j++)
 	{
 		// angle horizontal. Lembre-se que o Y cresce para a esquerda.
-		double horizontal_angle = from_degrees(INITIAL_ANGLE_HOR - j * ANGULAR_STEP_X);
+		double horizontal_angle = from_degrees(_INITIAL_ANGLE_HOR - j * _ANGULAR_STEP_X);
 
-		for (i = KINECT_LINES_TO_IGNORE_TOP; i < (depth_images[0].rows - KINECT_LINES_TO_IGNORE_BOTTOM - KINECT_LINE_STEP_BETWEEN_RAYS_TO_DETECT_OBSTACLES); i++)
+		for (i = _KINECT_LINES_TO_IGNORE_TOP; i < (depth_images[0].rows - _KINECT_LINES_TO_IGNORE_BOTTOM - _KINECT_LINE_STEP_BETWEEN_RAYS_TO_DETECT_OBSTACLES); i += _KINECT_VERTICAL_STEP)
 		{
 			// angle vertical. Lembre-se que o Z cresce para a cima.
-			double current_vertical_angle = from_degrees(INITIAL_ANGLE_VER - i * ANGULAR_STEP_Y);
-			double previous_vertical_angle = from_degrees(INITIAL_ANGLE_VER - (i + KINECT_LINE_STEP_BETWEEN_RAYS_TO_DETECT_OBSTACLES) * ANGULAR_STEP_Y);
+			double current_vertical_angle = from_degrees(_INITIAL_ANGLE_VER - i * _ANGULAR_STEP_Y);
+			double previous_vertical_angle = from_degrees(_INITIAL_ANGLE_VER - (i + _KINECT_LINE_STEP_BETWEEN_RAYS_TO_DETECT_OBSTACLES) * _ANGULAR_STEP_Y);
 
 			for (k = 0; k < depth_images.size(); k++)
 			{
 				// ranges
 				double current_range = depth_images[k].at<float>(i, j);
-				double previous_range = depth_images[k].at<float>(i + KINECT_LINE_STEP_BETWEEN_RAYS_TO_DETECT_OBSTACLES, j) ;
+				double previous_range = depth_images[k].at<float>(i + _KINECT_LINE_STEP_BETWEEN_RAYS_TO_DETECT_OBSTACLES, j);
 
 				// obstacle evidence
 				double obstacle_evidence = _calulate_obstacle_evidence(current_vertical_angle, previous_vertical_angle, current_range, previous_range);
 
-				if (obstacle_evidence == -1 || obstacle_evidence < OBSTACLE_EVIDENCE_THREASHOLD) // range max or not obstacle
+				if (obstacle_evidence == -1 || obstacle_evidence < _OBSTACLE_EVIDENCE_THREASHOLD) // range max or not obstacle
 				{
 					corrected_spherical_coords = TransformUtil::TransformSpherical(SphericalPoint(current_vertical_angle, horizontal_angle, 10.0), corrections[k]);
-					_add_point_to_scan_candidates(corrected_spherical_coords, -1);
+					_add_point_to_scan(corrected_spherical_coords, -1);
 
-					if (obstacle_evidence < OBSTACLE_EVIDENCE_THREASHOLD)
-						_draw_point_in_image(obstacles_in_image_viewer, i, j, 0, 0, 255);
+					if (obstacle_evidence == -1)
+					{
+						if (k == 0)
+							_draw_point_in_image(_left_obstacles_in_image_viewer, i, j, 0, 255, 0);
+						else
+							_draw_point_in_image(_right_obstacles_in_image_viewer, i, j, 0, 255, 0);
+					}
 					else
-						_draw_point_in_image(obstacles_in_image_viewer, i, j, 0, 255, 0);
+					{
+						if (k == 0)
+							_draw_point_in_image(_left_obstacles_in_image_viewer, i, j, 0, 0, 255);
+						else
+							_draw_point_in_image(_right_obstacles_in_image_viewer, i, j, 0, 0, 255);
+					}
 				}
 				else
 				{
 					corrected_spherical_coords = TransformUtil::TransformSpherical(SphericalPoint(current_vertical_angle, horizontal_angle, current_range), corrections[k]);
 
-					_draw_point_in_the_map(scan_viewer, corrected_spherical_coords, obstacle_evidence);
-					_draw_point_in_image(obstacles_in_image_viewer, i, j, 255, 0, 0);
-					_add_point_to_scan_candidates(corrected_spherical_coords, obstacle_evidence);
+					_draw_point_in_the_map(_scan_viewer, corrected_spherical_coords, obstacle_evidence);
+
+					if (k == 0)
+						_draw_point_in_image(_left_obstacles_in_image_viewer, i, j, 255, 0, 0);
+					else
+						_draw_point_in_image(_right_obstacles_in_image_viewer, i, j, 255, 0, 0);
+
+					_add_point_to_scan(corrected_spherical_coords, obstacle_evidence);
 				}
 			}
 		}
 	}
 
-	_build_scan_from_candidates(scan, scan_candidates_and_obstacle_evidence, left_cam_msg->header.stamp);
+	_build_scan(scan, left_cam_msg->header.stamp);
+
 	return scan;
 }
 
@@ -366,32 +373,23 @@ KinectToLaserAdapter::translate(const sensor_msgs::Image::ConstPtr& left_cam_msg
 void
 KinectToLaserAdapter::view() const
 {
-	static int first = 1;
+	Mat mini = Mat(_left_obstacles_in_image_viewer.rows / 2, _left_obstacles_in_image_viewer.cols / 2, _left_obstacles_in_image_viewer.type());
 
-	// in the first call of the method, the windows are created and moved to a default position.
-	if (first)
-	{
-//		imshow("kmapper", scan_viewer);
-//		imshow("obstacles", obstacles_in_image_viewer);
-//
-//		namedWindow("kmapper");
-//		namedWindow("obstacles");
-//
-//		// TODO: essas janelas sao criadas dinamicamente no view.
-//		namedWindow("depth_0");
-//		namedWindow("depth_1");
-//		moveWindow(const string& winname, int x, int y);
-	}
+	resize(_left_obstacles_in_image_viewer, mini, mini.size());
+	imshow("L", mini);
 
-	char name[32];
-	imshow("kmapper", scan_viewer);
-	imshow("obstacles", obstacles_in_image_viewer);
+	resize(_right_obstacles_in_image_viewer, mini, mini.size());
+	imshow("R", mini);
 
-	for (int i = 0; i < normalized_depth_images.size(); i++)
-	{
-		sprintf(name, "depth_%d", i);
-		imshow(name, normalized_depth_images[i]);
-	}
+	resize(_scan_viewer, mini, mini.size());
+	imshow("scan", mini);
+
+//	char name[32];
+//	for (int i = 0; i < normalized_depth_images.size(); i++)
+//	{
+//		sprintf(name, "depth_%d", i);
+//		imshow(name, normalized_depth_images[i]);
+//	}
 
 	waitKey(1);
 }

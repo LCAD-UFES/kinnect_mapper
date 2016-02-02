@@ -1,0 +1,34 @@
+Install the kinect launcher from ros: 
+
+## OBS: DO NOT USE OPENNI!! IT DOESN'T WORK FINE WITH MULTIPLE KINECTS!!
+1. sudo apt-get install ros-<rosdistro>-freenect-launch ros-<rosdistro>-freenect-camera
+
+Run and view the data using: 
+
+1. roslaunch freenect_launch freenect.launch 
+Note: If some error happens, see the known bugs section below.
+
+2. rosrun rviz rviz
+
+Set the Fixed Frame (top left of rviz window) to /camera_depth_optical_frame. Add a PointCloud2 display, and set the topic to /camera/depth/points. Turning the background to light gray can help with viewing. This is the unregistered point cloud in the frame of the depth (IR) camera. It is not matched with the RGB camera images.
+
+[3. OPTIONAL: Alternatively you can view the disparity image with "rosrun image_view disparity_view image:=/camera/depth/disparity" and to view the rgb out of rviz "rosrun image_view image_view image:=/camera/rgb/image_color".]
+
+REFERENCES: 
+- http://wiki.ros.org/freenect_launch
+- http://wiki.ros.org/freenect_camera
+- http://answers.ros.org/question/60562/ubuntu-12042-and-openni_launch-not-detecting-kinect-after-update/
+
+--- KNOWN BUGS ---
+
+1. When I ran the program above, I've got an error message saying that no devices could be connected.
+I solved the problem with the followin procedure (a copy of the package is saved in the current directory): 
+
+>> Download the https://codeload.github.com/avin2/SensorKinect/legacy.zip/unstable
+>> cd ~/Downloads
+>> unzip avin2-SensorKinect-v0.93-5.1.2.1-0-g15f1975.zip 
+>> cd avin2-SensorKinect-15f1975/Bin
+>> tar -xjf SensorKinect093-Bin-Linux-x64-v5.1.2.1.tar.bz2
+>> cd Sensor-Bin-Linux-x64-v5.1.2.1
+>> sudo ./install.sh
+

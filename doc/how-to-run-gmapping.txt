@@ -1,0 +1,63 @@
+
+---------------------------------------------------------------------
+Online Mapping
+
+Bring up the master:
+> roscore
+
+Give permission to the robot's port
+> chmod 777 /dev/ttyUSB0
+
+Give permission to the laser's port
+> chmod 777 /dev/ttyUSB1
+
+> Run joy to control the robot (check if we need to give permissions to the joy's dev)
+rosrun joy joy_node
+
+Run rosaria node to grab information from the robot
+> rosrun rosaria RosAria _port:=/dev/ttyUSB0
+
+Run the laser node 
+> rosrun sicktoolbox_wrapper sicklms _port:=/dev/ttyUSB1 _baud=38400
+
+> Run tf broadcaster to publish the laser position in relation to the base
+rosrun rosaria RosAriaLaserTf.py
+
+Run slam_gmapping:
+> rosrun gmapping slam_gmapping scan:=<laser topic> [_odom_frame:=<odom frame>] 
+OBS: how to set the odom topic? odom is got from tf?
+
+Save your new map to disk using map_saver from the map_server package (the navigation package contains it):
+> rosrun map_server map_saver
+
+
+---------------------------------------------------------------------
+From a bag file
+
+Note: An example bag can be download from http://pr.willowgarage.com/data/gmapping/basic_localization_stage.bag.
+Note: To create a bag file use "rosbag record -O <nome do arquivo> /base_scan /tf"
+
+Bring up the master:
+> roscore
+
+Make sure that use_sim_time is set to true before any nodes are started:
+> rosparam set use_sim_time true
+
+Bring up slam_gmapping, which will take in laser scans (in this case, on the base_scan topic) and produce a map:
+> rosrun gmapping slam_gmapping scan:=<laser topic> [_odom_frame:=<odom frame>] 
+OBS: how to set the odom topic? odom is got from tf?
+
+In a new terminal, start playing back the bag file to feed data to slam_gmapping:
+> rosbag play --clock <name of the bag file>
+
+Save your new map to disk using map_saver from the map_server package:
+> rosrun map_server map_saver
+
+Congratz! You now have a map, saved locally as map.pgm.
+
+
+---------------------------------------------------------------------
+Reference: 
+
+http://wiki.ros.org/gmapping
+http://wiki.ros.org/slam_gmapping/Tutorials/MappingFromLoggedData

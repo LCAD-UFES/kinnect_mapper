@@ -1,0 +1,81 @@
+To learn how to install kinect, please refer to "how-to-install-kinect.txt"
+
+Instalation of required packages
+
+	Install the depthimage-to-laserscan package which will convert kinect depth information to 2D-lasers.
+	[Ref.: http://wiki.ros.org/depthimage_to_laserscan]
+	>> sudo apt-get install ros-indigo-depthimage-to-laserscan
+
+	Install the rtabmap package, responsible for generating maps using kinect.
+	Note: I belive gmapping can be used too given that we will convert kinect data to 2D-lasers. rtabmap is good for 3d maps.
+	[Ref.: http://wiki.ros.org/rtabmap]
+	[Ref.: http://wiki.ros.org/rtabmap_ros/Tutorials/SetupOnYourRobot]
+	>>  sudo apt-get install ros-indigo-rtabmap ros-indigo-rtabmap-ros
+
+	Install the package to geometric transformations (degrees to radians, etc.)
+	>> sudo apt-get install ros-indigo-geometry
+
+	Install translator from ros image to opencv 
+	>> sudo apt-get install ros-indigo-cv-bridge
+
+Viewing data from n kinects
+
+	## READ ME!!!!
+	## Parameters for kinect driver: 
+	## the "camera" alias should uniquely identify the device
+	## the device id indicates which camera should be opened. It can have one of the following formats: 
+	## "B00367707227042B" : Use device with given serial number
+	## "#1" : Use first device found
+	## "2@3" : Use device on USB bus 2, address 3
+	## "2@0" : Use first device found on USB bus 2
+
+	## Driver for kinnect #1
+	>> roslaunch freenect_launch freenect.launch camera:=camera1 device_id:=B00361710187045B
+
+	## Driver for kinnect #2
+	>> roslaunch freenect_launch freenect.launch camera:=camera2 device_id:=A00363A03397130A
+
+	## Tf broadcaster (to publish the transform between the kinects). Update the script to change the relative position of the kinects.
+	>> rosrun kinnect_mapper kinect_tf.py
+
+	## Note: Instead of running the programs below, you can just run the following launch file.
+	## >> roslaunch kinnect_mapper kmapper.launch
+
+	## Viewer
+	## Note: to view both pointclouds, follow the steps below:
+	## 1. Set the fixed frame to the first kinect frame /camera1/camera1_link
+	## 2. Add a pointcloud2 viewer and choose the kinect1 topic /camera1/depth/points
+	## 3. Add a pointcloud2 viewer add choose the kinect2 topic /camera2/depth/points
+	## 4. [optional] For a better visualization, change the color mode from intensity to axis colors
+	>> rosrun rviz rviz
+
+Logging data from n kinects
+
+	## Run the drivers
+	>> roslaunch freenect_launch freenect.launch camera:=camera1 device_id:=B00361710187045B
+	>> roslaunch freenect_launch freenect.launch camera:=camera2 device_id:=A00363A03397130A
+
+	## Logger
+	## Note: You can choose to log Tf or publish it a posteriori. The first option is better if you know PRECISELY the transform between the cameras.
+	## If you don't, publish a posteriori is a better option, since it can be calibrated at runtime. The lines below will save the in the kinect.bag file.
+	## Option 1: without logging Tf.
+	>> rosbag record /camera2/depth/image_raw /camera2/depth/camera_info /camera1/depth/image_raw /camera1/depth/camera_info -O kinect
+	## Option 2: logging Tf - use it for your own risk! 
+	## >> rosbag record /camera2/depth/image_raw /camera2/depth/camera_info /camera1/depth/image_raw /camera1/depth/camera_info /tf -O kinect 
+
+Playback Logged Data
+
+	## Run the roscore
+	>> roscore
+
+	## Set the parameter to use the simulation time. DON'T FORGET TO SET IT TO FALSE BEFORE LOGGING!!
+	>> rosparam set /use_sim_time true
+
+	## Run the kinect filters *without the drivers*
+	>> roslaunch freenect_launch freenect.launch camera:=camera1 device_id:=B00361710187045B load_driver:=false
+	>> roslaunch freenect_launch freenect.launch camera:=camera2 device_id:=A00363A03397130A load_driver:=false
+
+	## playback the logged data, 
+	>> rosbag play --clock kinect.bag
+
+
